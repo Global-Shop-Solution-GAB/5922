@@ -1,0 +1,196 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Variable.Global.iBIRunID.Declare(Long,-1)
+Variable.Global.iBILogID.Declare(Long,-1)
+Variable.Global.bSentinel.Declare(Boolean,False)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+F.Intrinsic.Control.CallSub(Loaddata)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_OE_BOL_Shipping_Label.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!con.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_OE_BOL_Shipping_Label.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Unload.End
+
+Program.Sub.LoadData.Start
+F.Intrinsic.Control.SetErrorHandler("LoadData_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+
+'Getting run ID passed down
+V.Global.iBIRunID.Set(V.Passed.DATA-GAB-0)
+'Getting log ID passed down
+V.Global.iBILogID.Set(V.Passed.DATA-GAB-1)
+'Getting Sentinel flag passed down
+Variable.Global.bSentinel.Set(Variable.Passed.DATA-GAB-2)
+
+'Loading data from Y table, as being label being printed from Menu, Selecting all fields as all fields are transferred over from Y table to Z table
+'F.Intrinsic.String.Build("Select * From Y_OE_SHIP_BOL where RUNID = {0}",V.Global.iBIRunID,V.Local.sSql)
+F.Intrinsic.String.Build("Select T1.*, T2.LBS From Y_OE_SHIP_BOL T1 LEFT JOIN V_INVENTORY_ALL T2 ON T1.PART = T2.PART AND T1.LOCN = T2.LOCATION where RUNID = {0};",V.Global.iBIRunID,V.Local.sSql)
+Function.Data.DataTable.CreateFromSQL("dtBOLShipping","con",V.Local.sSql,True)
+
+F.Intrinsic.Control.If(V.DataTable.dtBOLShipping.Exists,=,True)
+	F.Intrinsic.Control.If(V.DataTable.dtBOLShipping.RowCount,>,0)
+    	'Checking to see if sequence being printed is Codesoft label
+	    Function.Intrinsic.Control.If(Variable.Global.bSentinel,=,True)
+	        'Stopping Logging
+	        F.Global.BI.StopLogging(V.Global.iBILogID)
+	
+	        'Printing Codesoft label
+	        F.Global.BI.PrintCodesoftLabelFromDatatable(V.Global.iBIRunID,V.Global.iBILogID,"dtBOLShipping","",True)
+	    Function.Intrinsic.Control.Else
+	    
+	    	F.Intrinsic.Control.CallSub(Load_To_Z_Table)
+	
+	        'Stopping Logging
+	        F.Global.BI.StopLogging(V.Global.iBILogID)
+	
+	        'Printing Crystal Report
+	        F.Intrinsic.Control.CallSub(Callbi)
+	    Function.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+Function.Intrinsic.Control.CallSub(Unload)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("LoadData_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_OE_BOL_Shipping_Label.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.LoadData.End
+
+Program.Sub.Load_To_Z_Table.Start
+'Load to z table.
+V.Local.sFm.Declare(String)
+'Map to SQL Table
+V.Local.sFm.Set("RUNID@!@BIRUNID")
+V.Local.sFm.Append("*!*WAYBILL_NO@!@WAYBILL_NO")
+V.Local.sFm.Append("*!*PCK_NO@!@PCK_NO")
+V.Local.sFm.Append("*!*CNTNR_NO@!@CNTNR_NO")
+V.Local.sFm.Append("*!*SEQ@!@SEQ")
+V.Local.sFm.Append("*!*QTY_ON_LABEL@!@QTY_ON_LABEL")
+V.Local.sFm.Append("*!*LBL_CREATE_DATE@!@LBL_CREATE_DATE")
+V.Local.sFm.Append("*!*SO_NBR@!@SO_NBR")
+V.Local.sFm.Append("*!*SO_LINE@!@SO_LINE")
+V.Local.sFm.Append("*!*CUST_PO@!@CUST_PO")
+V.Local.sFm.Append("*!*SHIP_INTL_ADDRS@!@SHIP_INTL_ADDRS")
+V.Local.sFm.Append("*!*SHIP_NAME@!@SHIP_NAME")
+V.Local.sFm.Append("*!*SHIP_ADDRS1@!@SHIP_ADDRS1")
+V.Local.sFm.Append("*!*SHIP_ADDRS2@!@SHIP_ADDRS2")
+V.Local.sFm.Append("*!*SHIP_ADDRS3@!@SHIP_ADDRS3")
+V.Local.sFm.Append("*!*SHIP_ADDRS4@!@SHIP_ADDRS4")
+V.Local.sFm.Append("*!*SHIP_ADDRS5@!@SHIP_ADDRS5")
+V.Local.sFm.Append("*!*SHIP_CITY@!@SHIP_CITY")
+V.Local.sFm.Append("*!*SHIP_STATE@!@SHIP_STATE")
+V.Local.sFm.Append("*!*SHIP_ZIP@!@SHIP_ZIP")
+V.Local.sFm.Append("*!*SHIP_COUNTRY@!@SHIP_COUNTRY")
+V.Local.sFm.Append("*!*SHIP_DATE@!@SHIP_DATE")
+V.Local.sFm.Append("*!*PART@!@PART")
+V.Local.sFm.Append("*!*LOCN@!@LOCN")
+V.Local.sFm.Append("*!*PART_DESC@!@PART_DESC")
+V.Local.sFm.Append("*!*CUST_PART@!@CUST_PART")
+V.Local.sFm.Append("*!*UM@!@UM")
+V.Local.sFm.Append("*!*QTY_PKGD@!@QTY_PKGD")
+V.Local.sFm.Append("*!*WEIGHT_PKGD@!@WEIGHT_PKGD")
+V.Local.sFm.Append("*!*CNTNR_CODE@!@CNTNR_CODE")
+V.Local.sFm.Append("*!*HM_FLAG@!@HM_FLAG")
+V.Local.sFm.Append("*!*PALLET_NO@!@PALLET_NO")
+V.Local.sFm.Append("*!*TRACKING_NO@!@TRACKING_NO")
+V.Local.sFm.Append("*!*USER_DFND_NO@!@USER_DFND_NO")
+V.Local.sFm.Append("*!*USER_1@!@USER_1")
+V.Local.sFm.Append("*!*USER_2@!@USER_2")
+V.Local.sFm.Append("*!*USER_3@!@USER_3")
+V.Local.sFm.Append("*!*USER_4@!@USER_4")
+V.Local.sFm.Append("*!*USER_5@!@USER_5")
+V.Local.sFm.Append("*!*LOT@!@LOT")
+V.Local.sFm.Append("*!*BIN@!@BIN")
+V.Local.sFm.Append("*!*HEAT@!@HEAT")
+V.Local.sFm.Append("*!*SERIAL@!@SERIAL")
+V.Local.sFm.Append("*!*LBHS_QTY@!@LBHS_QTY")
+V.Local.sFm.Append("*!*LBHS_WEIGHT@!@LBHS_WEIGHT")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_1@!@LBHS_USER_FLD_1")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_2@!@LBHS_USER_FLD_2")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_3@!@LBHS_USER_FLD_3")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_4@!@LBHS_USER_FLD_4")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_5@!@LBHS_USER_FLD_5")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_6@!@LBHS_USER_FLD_6")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_7@!@LBHS_USER_FLD_7")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_8@!@LBHS_USER_FLD_8")
+V.Local.sFm.Append("*!*LBHS_USER_FLD_9@!@LBHS_USER_FLD_9")
+
+'Save to db.
+F.Data.DataTable.SaveToDB("dtBOLShipping","con","Z_OE_SHIP_BOL","",128,V.Local.sFm)
+
+Program.Sub.Load_To_Z_Table.End
+
+Program.Sub.CallBI.Start
+F.Intrinsic.Control.SetErrorHandler("CallBI_Err")
+F.Intrinsic.Control.ClearErrors
+
+Variable.Local.sError.Declare(String)
+Variable.Local.iRet.Declare(Long)
+
+Function.Global.BI.RunReportPreProcessor(V.Global.iBIRunID,V.Global.iBILogID,"","","",-1,True,"",-1,"",-1,"","",v.Local.iRet)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CallBI_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_OE_BOL_Shipping_Label.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CallBI.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$12:00:00 AM$}$False
+Program.Sub.Comments.End
+
