@@ -1,0 +1,117 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.iBIRunID.Declare(Long,-1)
+Variable.Global.iBILogID.Declare(Long,-1)
+Variable.Global.bSentinel.Declare(Boolean,False)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'DRH 9/13/2018 Convert to .NET
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+
+Function.ODBC.Connection!con.OpenCompanyConnection
+Function.Intrinsic.Control.CallSub(Loaddata)
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_IV_Bin_Bin_Transfer_Label_2571.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.LoadData.Start
+F.Intrinsic.Control.SetErrorHandler("LoadData_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+
+'Getting run ID passed down
+V.Global.iBIRunID.Set(V.Passed.DATA-GAB-0)
+'Getting log ID passed down
+V.Global.iBILogID.Set(V.Passed.DATA-GAB-1)
+'Getting Sentinel flag passed down
+Variable.Global.bSentinel.Set(Variable.Passed.DATA-GAB-2)
+
+'Loading data from Y table, as being label being printed from Menu, Selecting all fields as all fields are transferred over from Y table to Z table
+'F.Intrinsic.String.Build("Select RUNID As BIRUNID,PART,LOCN,BIN,SEQ,QTY_ON_LABEL,LBL_CREATE_DATE,GROSS_WEIGHT,TARE_WEIGHT,LOT,HEAT,SERIAL,DESCR,DESCR2,INV_UM,IHIST_TRAN_CODE As TRANS_CODE,ACTION_DATE,USER_ID,EXPIRE_DATE,WARRANTY_MO From Y_IV_BTB_XFER where RUNID = {0}",V.Global.iBIRunID,V.Local.sSql)
+F.Intrinsic.String.Build("Select T1.RUNID As BIRUNID,T1.PART,T1.LOCN,T1.BIN,T1.SEQ,T1.QTY_ON_LABEL,T1.LBL_CREATE_DATE,T1.GROSS_WEIGHT,T1.TARE_WEIGHT,T1.LOT,HEAT,T1.SERIAL,T1.DESCR,T1.DESCR2,T1.INV_UM,T1.IHIST_TRAN_CODE As TRANS_CODE,T1.ACTION_DATE,T1.USER_ID,T1.EXPIRE_DATE,T1.WARRANTY_MO,T2.LBS From Y_IV_BTB_XFER T1 LEFT JOIN V_INVENTORY_ALL T2 ON T1.PART = T2.PART AND T1.LOCN = T2.LOCATION where RUNID = {0};",V.Global.iBIRunID,V.Local.sSql)
+F.Data.DataTable.CreateFromSQL("dtBIN", "con", V.Local.ssql)
+
+F.Intrinsic.Control.If(V.DataTable.dtBIN.RowCount, >, 0)
+    'Checking to see if sequence being printed is Codesoft label
+    Function.Intrinsic.Control.If(Variable.Global.bSentinel,=,True)
+        'Stopping Logging
+        F.Global.BI.StopLogging(V.Global.iBILogID)
+        'Printing Codesoft label
+        Function.Global.BI.PrintCodeSoftLabelFromDataTable(V.Global.iBIRunID, V.Global.iBILogID, "dtBIN", "", True)
+    Function.Intrinsic.Control.Else
+        'Opening table and writing data out for Crystal/Bartender
+        F.Data.DataTable.SaveToDB("dtBIN", "con", "Z_IV_BTB_XFER", "", 128)
+        'Stopping Logging
+        F.Global.BI.StopLogging(V.Global.iBILogID)
+        'Printing Crystal Report
+        F.Intrinsic.Control.CallSub(Callbi)
+    Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+Function.Intrinsic.Control.CallSub(Unload)
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("LoadData_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_IV_Bin_Bin_Transfer_Label_2571.g2u.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    Function.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.LoadData.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!con.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+    Function.Intrinsic.String.Concat("Project: BIR_IV_Bin_Bin_Transfer_Label_2571.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    Function.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+Program.Sub.Unload.End
+
+Program.Sub.CallBI.Start
+F.Intrinsic.Control.SetErrorHandler("CallBI_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iRet.Declare(Long)
+
+Function.Global.BI.RunReportPreProcessor(V.Global.iBIRunID,V.Global.iBILogID,"","","",-1,True,"",-1,"",-1,"","",v.Local.iRet)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CallBI_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: BIR_IV_Bin_Bin_Transfer_Label_2571.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.CallBI.End
+
+Program.Sub.Comments.Start
+${$0$}$SF_WIP_FG_Label$}$MITCH$}$1/1/1900$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$WiptoFGLabel
+ReportID:1835
+Program.Sub.Comments.End
+
